@@ -679,6 +679,12 @@ function losT(w,bx,by){const ax=w.x,ay=w.y,d=Math.hypot(bx-ax,by-ay),n=Math.ceil
 /* soldado de guarda em cima da plataforma da torre (vermelho = inimigo, azul = aliado) */
 function drawGuard(w,gx,gy){const o=w.go||(w.go={});o.ft=Math.max(w.ft,w.gft||-1e9);o.am=w.en&&w.al>.5;let f=w.a;if(w.en&&w.lp&&nowT-w.seen<3000)f=Math.atan2(w.lp[1]-gy,w.lp[0]-gx);soldier(GX(gx),GY(gy),f,w.en?'#6b2f2a':'#2f7fb8',w.en?'#8a8f94':'#1d4f93',.9,levelHeight(2),o)}
 /* tiroteio: o soldado da torre inimiga atira nos aliados em campo; eles respondem. Cada guarda aguenta 3 acertos. */
+/* balas de fundo que cruzam a tela: cada uma tem estampido, estalo e zumbido; 28% das vezes vêm em rajada curta */
+function ambBullet(l,y,sp,n){const dist=rnd(.3,1),kind=Math.random()<.2?1:0,from=l?-1:1;
+ for(let i=0;i<n;i++){const go=()=>{const yy=y+rnd(-14,14),vy=rnd(-160,160);bul.push({x:l?-40:W+40,y:yy,vx:l?sp:-sp,vy});
+   const tp=(W/2+40)/sp,near=Math.max(0,1-Math.abs(yy+vy*tp-GY(P.y))/(H*.42));
+   try{SFX.gunFar(dist,from*.75,kind,0);SFX.pass(from,tp,near)}catch(e){}};
+  if(i===0)go();else q.push({at:nowT+i*rnd(85,130),f:go})}}
 function tracer(ax,ay,ah,bx,by,bh){const sx=GX(ax),sy=GY(ay),[o1,o2]=off(sx,sy,ah),tx=GX(bx),ty=GY(by),[p1,p2]=off(tx,ty,bh),x0=sx+o1,y0=sy+o2,x1=tx+p1,y1=ty+p2,m=Math.hypot(x1-x0,y1-y0)||1;bul.push({x:x0,y:y0,vx:(x1-x0)/m*1100,vy:(y1-y0)/m*1100})}
 function guardDie(w,why){if(w.gdead)return;w.gdead=true;w.bq=0;if(Math.hypot(w.x-P.x,w.y-P.y)<T*16)msg(why)}
 const ADV=1.3;
@@ -2531,7 +2537,7 @@ function frame0(t){
  if(st==='play'&&!TR&&!CT){if(!L.f)airUpd(dt);crocUpd(dt);wireUpd(dt);sgrUpd(dt)}
  if(st==='play'){if(fight){fightTick();if(!mg&&nowT>=fight.gap)mgNew(4500,roundOk,roundFail)}if(mg&&nowT>mg.end)mgFail();if(!mg&&nowT>mgCool){const t=findTg();if(t)startTake(t.e)}}
  if(st==='play'||st==='dead'||st==='clear'){
-  if(!TR&&t>nextBul){nextBul=t+rnd(200,700);const l=Math.random()<.5,sp=rnd(1000,1700);bul.push({x:l?-40:W+40,y:rnd(0,H),vx:l?sp:-sp,vy:rnd(-160,160)});if(Math.random()<.35)SFX.whiz(l?-.8:.8)}
+  if(!TR&&t>nextBul){nextBul=t+rnd(200,700);ambBullet(Math.random()<.5,rnd(0,H),rnd(1000,1700),Math.random()<.28?2+(Math.random()*2|0):1)}
   if(!TR&&t>nextFar){nextFar=t+rnd(5000,9000);shake=Math.max(shake,rnd(6,10));flash=Math.max(flash,.1);SFX.far();ugBoom(.5);if(CTX)ctFar();const x=camX+rnd(0,W);for(let i=0;i<5;i++)parts.push({k:'s',x:x+rnd(-20,20),y:camY+rnd(0,H*.3),vx:rnd(-.4,.4),vy:rnd(-.5,0),l:0,m:110,r:T*.4})}
  }
  if(shake>.2){const a=RM?shake*.04:shake*.25;wrap.style.transform=`translate(${rnd(-a,a)}px,${rnd(-a,a)}px)`;shake*=Math.pow(.005,dt)}else if(shake){shake=0;wrap.style.transform=''}
@@ -2547,7 +2553,7 @@ function frame0(t){
 
 /* ===== SOM (abafado) ===== */
 const SFX=(()=>{
- let ac=null,mst,nbuf,on=true,fireG,fNext=0,wNext=0,fireD=1e9;
+ let ac=null,mst,vbus,nbuf,on=true,fireG,fNext=0,wNext=0,fireD=1e9;
  const cl=(v,a,b)=>Math.max(a,Math.min(b,v)),
   att=(x,y,R)=>Math.pow(Math.max(0,1-Math.hypot(x-P.x,y-P.y)/(T*(R||17))),1.7),
   pn=x=>cl((GX(x)-W/2)/(W*.55),-1,1)*.8,
@@ -2559,16 +2565,16 @@ const SFX=(()=>{
   const lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=950;lp.Q.value=.4;
   mst=ac.createGain();mst.gain.value=.85;
   const len=ac.sampleRate*1.5|0,ib=ac.createBuffer(2,len,ac.sampleRate);
-  for(let c=0;c<2;c++){const d=ib.getChannelData(c);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.4)}
+  for(let c=0;c<2;c++){const d=ib.getChannelData(c);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.4);let y1=0,y2=0;for(let i=0;i<len;i++){y1+=(d[i]-y1)*.12;y2+=(y1-y2)*.12;d[i]=y2*1.2}}
   const vb=ac.createConvolver();vb.buffer=ib;const vg=ac.createGain();vg.gain.value=.3;
-  mst.connect(lp);mst.connect(vb);vb.connect(vg);vg.connect(lp);lp.connect(comp);comp.connect(ac.destination);
+  mst.connect(lp);mst.connect(vb);vb.connect(vg);vg.connect(lp);vbus=ac.createGain();vbus.gain.value=.85;vbus.connect(lp);lp.connect(comp);comp.connect(ac.destination);
   nbuf=ac.createBuffer(1,ac.sampleRate*2,ac.sampleRate);const d=nbuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
   const ws=ac.createBufferSource();ws.buffer=nbuf;ws.loop=true;const wf=ac.createBiquadFilter();wf.type='bandpass';wf.frequency.value=320;wf.Q.value=.5;
   const wg=ac.createGain();wg.gain.value=.05;const lf=ac.createOscillator(),lg=ac.createGain();lf.frequency.value=.13;lg.gain.value=.03;lf.connect(lg);lg.connect(wg.gain);
   ws.connect(wf);wf.connect(wg);wg.connect(mst);ws.start();lf.start();
   const fs=ac.createBufferSource();fs.buffer=nbuf;fs.loop=true;const ff=ac.createBiquadFilter();ff.type='lowpass';ff.frequency.value=600;
   fireG=ac.createGain();fireG.gain.value=0;fs.connect(ff);ff.connect(fireG);fireG.connect(mst);fs.start()}
-  function resume(){init();if(!resume.u&&'speechSynthesis'in window&&typeof SpeechSynthesisUtterance!=='undefined'){resume.u=1;try{loadVoices();const z=new SpeechSynthesisUtterance('.');z.volume=0;z.lang='pt-BR';speechSynthesis.speak(z);setTimeout(()=>{if(!vBusy)try{speechSynthesis.cancel()}catch(e){}},400)}catch(e){}}if(ac&&ac.state==='suspended')ac.resume();if('speechSynthesis'in window&&speechSynthesis.paused)speechSynthesis.resume()}
+  function resume(){init();if(false){resume.u=1;try{loadVoices();const z=new SpeechSynthesisUtterance('.');z.volume=0;z.lang='pt-BR';speechSynthesis.speak(z);setTimeout(()=>{if(!vBusy)try{speechSynthesis.cancel()}catch(e){}},400)}catch(e){}}if(ac&&ac.state==='suspended')ac.resume();if('speechSynthesis'in window&&speechSynthesis.paused)speechSynthesis.resume()}
  const dst=p=>{const g=ac.createGain();let n=g;if(ac.createStereoPanner){const s=ac.createStereoPanner();s.pan.value=p||0;g.connect(s);n=s}n.connect(mst);return g};
  function burst(o){if(!ok()||o.vol<.003)return;const t0=ac.currentTime+(o.t||0),s=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();
   s.buffer=nbuf;f.type=o.type||'lowpass';f.Q.value=o.q||.7;f.frequency.setValueAtTime(o.f0,t0);f.frequency.exponentialRampToValueAtTime(Math.max(20,o.f1||o.f0),t0+o.dur);
@@ -2596,7 +2602,22 @@ const SFX=(()=>{
  function whiz(p){if(!ok())return;burst({f0:1900,f1:800,type:'bandpass',q:1.5,dur:.09,vol:.12,p,at:.03})}
  function far(){if(!ok())return;const p=rnd(-.7,.7);burst({dur:1.6,f0:650,f1:50,vol:.4,p,at:.02});tone({f0:60,f1:30,dur:1.2,vol:.4,p})}
  function farGuns(){if(!ok())return;const n=3+(Math.random()*5|0),p=rnd(-.8,.8);for(let i=0;i<n;i++)burst({t:i*rnd(.09,.2),f0:1800,f1:300,dur:.08,vol:.09,p})}
- function whistle(x,y,dur){const v=att(x,y,24);if(v<.02||!ok())return;const t0=ac.currentTime,o=ac.createOscillator(),g=ac.createGain();
+   /* tiros de fundo: estampido distante (chega depois, mais abafado e com eco quanto mais longe) e bala passando (estalo + zumbido que cruza do lado de origem ao oposto) */
+  const gfq=[];
+  function gunFar(dist,pan,kind,dl){if(!ok())return;const nt=ac.currentTime;while(gfq.length&&nt-gfq[0]>.7)gfq.shift();if(gfq.length>=5)return;gfq.push(nt);
+   const v=(1-dist*.7)*.6,k=1-dist*.6,r=.9+Math.random()*.2,t=(dl||0)+dist*.26,p=pan;
+   if(kind===1){burst({t,dur:.035,type:'bandpass',q:.8,f0:(2300*k+500)*r,f1:900,vol:.3*v,p,at:.002});tone({t,f0:200*r,f1:70,dur:.12,vol:.4*v,p})}
+   else{burst({t,dur:.04,type:'bandpass',q:.8,f0:(2800*k+500)*r,f1:1000*k+300,vol:.4*v,p,at:.002});burst({t,dur:.11+dist*.05,f0:(1400*k+220)*r,f1:200,q:.7,vol:.5*v,p});tone({t,f0:150*r,f1:50,dur:.18,vol:.5*v,p})}
+   tone({t:t+.16+Math.random()*.08,f0:90*r,f1:45,dur:.28,vol:.2*v*(.5+dist),p:-p*.35,at:.03});
+   if(dist>.6)tone({t:t+.4+Math.random()*.12,f0:75*r,f1:40,dur:.35,vol:.12*v,p:p*.4,at:.05})}
+  function pass(from,tp,near){if(!ok()||near<.04)return;const t0=ac.currentTime,s=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain(),a=Math.max(0,tp-.14);
+   s.buffer=nbuf;f.type='bandpass';f.Q.value=2.2;
+   f.frequency.setValueAtTime(2000,t0+a);f.frequency.exponentialRampToValueAtTime(1400,t0+tp);f.frequency.exponentialRampToValueAtTime(650,t0+tp+.15);
+   g.gain.setValueAtTime(0,t0+a);g.gain.linearRampToValueAtTime(.24*near,t0+tp);g.gain.exponentialRampToValueAtTime(.0005,t0+tp+.17);
+   s.connect(f);f.connect(g);let n=g;if(ac.createStereoPanner){const pn2=ac.createStereoPanner();pn2.pan.setValueAtTime(from*.9,t0);pn2.pan.linearRampToValueAtTime(-from*.9,t0+tp*2);g.connect(pn2);n=pn2}n.connect(mst);
+   s.start(t0,Math.random()*1.4);s.stop(t0+tp+.25);
+   if(near>.55)burst({t:Math.max(0,tp-.01),type:'bandpass',q:1,f0:3000,f1:1800,dur:.035,vol:.28*near,p:0,at:.002})}
+function whistle(x,y,dur){const v=att(x,y,24);if(v<.02||!ok())return;const t0=ac.currentTime,o=ac.createOscillator(),g=ac.createGain();
   o.type='triangle';o.frequency.setValueAtTime(1400,t0);o.frequency.exponentialRampToValueAtTime(480,t0+dur);
   g.gain.setValueAtTime(.01,t0);g.gain.linearRampToValueAtTime(.4*v,t0+dur*.9);g.gain.linearRampToValueAtTime(0,t0+dur);
   o.connect(g);g.connect(dst(pn(x)));o.start(t0);o.stop(t0+dur+.05)}
@@ -2610,58 +2631,162 @@ const SFX=(()=>{
    stop(){try{const t=ac.currentTime;g.gain.setTargetAtTime(0,t,.15);o1.stop(t+.9);o2.stop(t+.9);nz.stop(t+.9)}catch(e){}}}}
  const cell=o=>ix(cl(o.x/T|0,0,N-1),cl(o.y/T|0,0,N-1));
  function stepsOf(o,v0,pnx,kind){const si=Math.floor((o.ph||0)/Math.PI);if(o._si===undefined)o._si=si;if(si!==o._si){o._si=si;if((o.mv||0)>.3)step(kind,v0,pnx)}else if(si!==o._si)o._si=si}
-  const voiceCalls=['Contato à esquerda, cubram a passagem!','Avança por trás da trincheira!','Dá cobertura, estou me movendo!','Recuem, recuem! Não fiquem expostos!','Tem movimento na linha da frente!','Segura essa posição!','Muda de flanco agora!','Fiquem abaixados!','Vai, vai, estou cobrindo!','Olha a retaguarda!','Atenção ao terreno, tem uma cratera!','Fecha essa brecha!','Espera meu sinal!','Volta para a cobertura!','Alguém viu o grupo avançado?','Rápido, para o outro lado!','Eu vou pelo flanco direito!','Mantém a posição, já estou chegando!','Silêncio, tem alguém por perto!','Vai pela vala, não pelo campo aberto!','Protege a lateral!','Confirma a posição!','Continua, não para agora!','Tem alguém naquela elevação!','Aguenta aí, estou indo!','Cuidado com a torre!','Olha o flanco, estou recarregando!','Passa a informação para os outros!','Não deixa ninguém para trás!','Fica comigo, vamos juntos!','Duas pessoas comigo, agora!','Aguarda, vou verificar a passagem!','O caminho da direita está livre!','Tem alguém vindo do lado de lá!','Olha para trás, rápido!','Vai até a parede e espera!','Não corre pelo campo aberto!','Avisa o pessoal mais atrás!','Estou vendo movimento no alto!','Protege quem está atravessando!','Sai daí, essa posição não é segura!','Vamos mudar de abrigo!','Confere se todos chegaram!','Fica baixo até eu chamar!','Tem barulho perto das ruínas!','Espera o outro grupo passar!','Vai pela sombra, sem pressa!','Não se separa do resto!','Alguém responde, estão me ouvindo?','Estou indo pelo lado de vocês!','Recuem um pouco e cubram a entrada!','Cuidado com a área aberta!','Checa a passagem antes de avançar!','Aguenta firme, já estamos chegando!','Leva essa mensagem para a frente!','Olha a esquerda, tem gente se movendo!','Todo mundo para trás da mureta!','Segue pela vala até o próximo abrigo!','Espera mais um pouco, não sai ainda!','Avisa quando o caminho estiver limpo!'];
+  const voiceCalls=["Vai!", "Cobre!", "Abaixa!", "Recua!", "Aqui!", "Rápido!", "Cuidado!", "Segura!", "Esquerda!", "Direita!", "Atrás!", "Vem!", "Fica!", "Corre!", "Olha!", "Agora!", "Calma!", "Volta!", "Avança!", "Sai!", "Desce!", "Espera!", "Contato!", "Ei!", "Limpo!", "Peguei!", "Tô indo!", "Eu cubro!", "Cobre aí!", "Vai, vai!", "Por aqui!", "Sai daí!", "Fica baixo!", "Tá livre!", "Segura aí!", "Cadê ele?", "Quem tá aí?", "Tem alguém!", "Mais um!", "Vem comigo!", "Não para!", "Anda logo!", "Fecha ali!", "Isso, vai!", "Silêncio!", "Cobre a esquerda!", "Olha o flanco!", "Tô recarregando!"];
   /* voz de rádio sintetizada (sempre funciona, mesmo sem vozes do sistema): sílabas com formantes de vogais, filtro de rádio e estalo de transmissão */
   const VWL=[[730,1090],[530,1840],[270,2290],[570,840],[300,870]];
   function babbleVoice(cx,dst,nb,txt,t0,base){
    const out=cx.createGain();out.gain.value=1.5;const bp=cx.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1500;bp.Q.value=.5;
-   const hp=cx.createBiquadFilter();hp.type='highpass';hp.frequency.value=260;out.connect(bp);bp.connect(hp);hp.connect(dst);
+   const hp=cx.createBiquadFilter();hp.type='highpass';hp.frequency.value=260;const ws=cx.createWaveShaper(),cv=new Float32Array(256);for(let q=0;q<256;q++){const xx=q/128-1;cv[q]=Math.tanh(xx*4.2)*.9}ws.curve=cv;ws.oversample='2x';
+    const lp=cx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2700;lp.Q.value=.8;const pg=cx.createGain();pg.gain.value=.5;
+    out.connect(ws);ws.connect(lp);lp.connect(bp);bp.connect(hp);hp.connect(pg);pg.connect(dst);
    let t=t0;const sq=(at)=>{const n=cx.createBufferSource(),g=cx.createGain();n.buffer=nb;g.gain.setValueAtTime(.3,at);g.gain.exponentialRampToValueAtTime(.001,at+.08);n.connect(g);g.connect(hp);n.start(at,0,.1)};
    sq(t);t+=.1;
+   const bed=cx.createBufferSource(),bg=cx.createGain();bed.buffer=nb;bed.loop=true;bg.gain.value=.07;bed.connect(bg);bg.connect(out);bed.start(t0);
    const words=txt.replace(/[¡¿]/g,'').split(/\s+/).filter(Boolean),ex=/!/.test(txt);
    words.forEach((w,wi)=>{const syl=Math.max(1,Math.min(4,Math.round(w.replace(/[^\wÀ-ÿ]/g,'').length/3.2))),last=wi===words.length-1;
     for(let k=0;k<syl;k++){const d=.1+Math.random()*.07,v=VWL[Math.random()*VWL.length|0],pr=wi/Math.max(1,words.length-1),
       f=base*(ex?1.08:1)*(1+.12*Math.sin(wi*1.7+k)-(last&&k===syl-1?.18:0)-pr*.06),
-      o=cx.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(f,t);o.frequency.linearRampToValueAtTime(f*(.94+Math.random()*.1),t+d);
+      o=cx.createOscillator();o.type='sawtooth';
+       if(Math.random()<.55){const cn=cx.createBufferSource(),cg=cx.createGain(),cf=cx.createBiquadFilter();cf.type='bandpass';cf.frequency.value=1800+Math.random()*3200;cf.Q.value=1.2;cn.buffer=nb;cg.gain.setValueAtTime(.4,t);cg.gain.exponentialRampToValueAtTime(.001,t+.045);cn.connect(cf);cf.connect(cg);cg.connect(out);cn.start(t,0,.05)}
+       o.frequency.setValueAtTime(f,t);o.frequency.linearRampToValueAtTime(f*(.94+Math.random()*.1),t+d);
       const e=cx.createGain();e.gain.setValueAtTime(0,t);e.gain.linearRampToValueAtTime(.5,t+.02);e.gain.setValueAtTime(.5,t+d-.03);e.gain.linearRampToValueAtTime(0,t+d);
       for(const fr of v){const bf=cx.createBiquadFilter();bf.type='bandpass';bf.frequency.value=fr*(.95+Math.random()*.1);bf.Q.value=5;const gg=cx.createGain();gg.gain.value=fr<1000?2.2:1.3;o.connect(bf);bf.connect(gg);gg.connect(e)}
       e.connect(out);o.start(t);o.stop(t+d+.02);t+=d+.015}
     t+=/[,;]$/.test(w)?.12:/[.!?]$/.test(w)?.05:.05});
-   sq(t+.02);return t+.12-t0}
+   sq(t+.02);try{bed.stop(t+.08)}catch(e){}return t+.12-t0}
   let ttsFails=0,ttsDead=false;
-  function babble(txt){if(!ac||!on||ac.state!=='running'||!nbuf)return 0;try{return babbleVoice(ac,ac.destination,nbuf,txt,ac.currentTime+.04,rnd(95,135))}catch(e){return 0}}
-  let vNext=0,vLast=-1,lastVoice=null,vStart=0,vFailAt=0,vBusy=0,vId=0,vList=[];
+
+   /* ===== VOZ AMBIENTE: sintetizador de formantes letra por letra (pt-BR) =====
+      cada fala sorteia modo (normal / grito / sussurro), distância e acústica do cenário.
+      Ajustes rápidos em VOX: lvl = volume geral, mufla = quanto a distância abafa, eco = reverberação */
+   const VOX={lvl:.13,mufla:2.3,eco:1,vel:1};
+   const VWF={a:[730,1090,2440],e:[530,1840,2480],i:[270,2290,3010],o:[500,900,2500],u:[300,870,2240]};
+   const VPL={p:[800,.55,0],b:[700,.35,1],t:[3800,.8,0],d:[3200,.45,1],k:[2200,.7,0],g:[1800,.4,1]};
+   const VFR={s:[6200,1.2,.9,0,.1],z:[5200,1.2,.5,1,.085],S:[3200,1,.9,0,.11],J:[3000,.8,.5,1,.09],f:[4200,.4,.4,0,.08],v:[4000,.4,.28,1,.075]};
+   function ptSeq(txt){
+    const inc=(a,c)=>c!==''&&a.includes(c),AC={'á':'a','à':'a','â':'a','ã':'a','é':'e','ê':'e','í':'i','ó':'o','ô':'o','õ':'o','ú':'u'},isV=c=>c!==''&&'aeiouáàâãéêíóôõúü'.includes(c),res=[];
+    const words=txt.toLowerCase().split(/\s+/).filter(Boolean);
+    words.forEach(raw=>{
+     const tail=(raw.match(/[,;.!?…]+$/)||[''])[0],w=raw.replace(/[^a-zàáâãçéêíóôõúü]/g,''),ph=[];
+     for(let i=0;i<w.length;i++){
+      const c=w[i],n=w[i+1]||'',n2=w[i+2]||'',pv=ph[ph.length-1];
+      if(isV(c)){ph.push({t:'V',v:AC[c]||(c==='ü'?'u':c),st:!!AC[c],nas:c==='ã'||c==='õ'});continue}
+      switch(c){
+       case 'm':case 'n':if(c==='n'&&n==='h'){ph.push({t:'N'});i++}else if(pv&&pv.t==='V'&&!isV(n))pv.nas=true;else ph.push({t:c});break;
+       case 'c':if(n==='h'){ph.push({t:'S'});i++}else ph.push({t:inc('eiéêí',n)?'s':'k'});break;
+       case 'ç':ph.push({t:'s'});break;
+       case 'q':ph.push({t:'k'});if(n==='u')i++;break;
+       case 'g':if(n==='u'&&inc('eiéêí',n2)){ph.push({t:'g'});i++}else ph.push({t:inc('eiéêí',n)?'J':'g'});break;
+       case 'j':ph.push({t:'J'});break;
+       case 'x':ph.push({t:'S'});break;
+       case 'z':ph.push({t:'z'});break;
+       case 's':if(n==='s'){ph.push({t:'s'});i++}else ph.push({t:pv&&pv.t==='V'&&isV(n)?'z':'s'});break;
+       case 'r':if(i===0||n==='r'){ph.push({t:'R'});if(n==='r')i++}else ph.push({t:'r'});break;
+       case 'l':if(n==='h'){ph.push({t:'L'});i++}else if(i===w.length-1)ph.push({t:'V',v:'u',red:true});else ph.push({t:'l'});break;
+       case 'y':ph.push({t:'V',v:'i'});break;
+       case 'w':ph.push({t:'V',v:'u'});break;
+       case 'h':break;
+       default:if('pbtdfv'.includes(c))ph.push({t:c})}}
+     const vs=ph.map((p,k)=>p.t==='V'?k:-1).filter(k=>k>=0);
+     if(vs.length&&!ph.some(p=>p.st)){const la=ph[ph.length-1],eV=la.t==='V'||(la.t==='s'&&ph[ph.length-2]&&ph[ph.length-2].t==='V');ph[(eV&&vs.length>1)?vs[vs.length-2]:vs[vs.length-1]].st=true}
+     if(w.length<=2)ph.forEach(p=>{if(p.t==='V')p.st=false});
+     for(let k=ph.length-1;k>=0;k--){const p=ph[k];if(p.t==='V'){if(!p.st){p.red=true;if(p.v==='e')p.v='i';else if(p.v==='o')p.v='u'}break}}
+     if(ph.length)res.push({ph,tail,weak:w.length<=2})});
+    return res}
+   function voiceSay(cx,dst,nb,txt,t0,o){
+    const md=o.mode,sh=md==='shout',wh=md==='whisper',dist=o.dist,fs=o.fs,sp=VOX.vel*(sh?.92:wh?.9:1)*o.sp;
+    const fl=(Math.abs(o.pan)>.01&&cx.createStereoPanner)?cx.createStereoPanner():null;if(fl)fl.pan.value=o.pan;
+    const master=cx.createGain();master.gain.value=VOX.lvl*(sh?1.9:wh?.85:1)/(1+dist*3.2);if(fl){master.connect(fl);fl.connect(dst)}else master.connect(dst);
+    /* fonte: serra (voz) + ruído (sussurro, aspiração, fricativas) */
+    const osc=cx.createOscillator();osc.type='sawtooth';osc.frequency.value=o.base;
+    const lfo=cx.createOscillator(),lg=cx.createGain();lfo.frequency.value=5+Math.random()*1.5;lg.gain.value=sh?26:9;lfo.connect(lg);lg.connect(osc.detune);
+    const gV=cx.createGain(),gA=cx.createGain(),gFr=cx.createGain();gV.gain.value=0;gA.gain.value=0;gFr.gain.value=0;
+    const ns=cx.createBufferSource();ns.buffer=nb;ns.loop=true;
+    const frBP=cx.createBiquadFilter();frBP.type='bandpass';frBP.Q.value=1.2;frBP.frequency.value=4000;
+    const sl=cx.createBiquadFilter();sl.type='lowpass';sl.frequency.value=2000;sl.Q.value=.5;osc.connect(sl);sl.connect(gV);ns.connect(gA);ns.connect(frBP);frBP.connect(gFr);
+    const mix=cx.createGain();mix.gain.value=1;
+    const FQ=wh?[3,4,5]:[6,8,10],FG=[7,4.5,2.6],fm=[];
+    for(let q=0;q<3;q++){const f=cx.createBiquadFilter();f.type='bandpass';f.Q.value=FQ[q];f.frequency.value=VWF.a[q]*fs;const g=cx.createGain();g.gain.value=FG[q];gV.connect(f);gA.connect(f);f.connect(g);g.connect(mix);fm.push(f)}
+    gFr.connect(mix);
+    /* grito satura; voz normal só arredonda */
+    const ws=cx.createWaveShaper(),cv=new Float32Array(512),dr=sh?2:1.2;for(let q=0;q<512;q++){const x=q/256-1;cv[q]=Math.tanh(x*dr)/Math.tanh(dr)}ws.curve=cv;ws.oversample='2x';
+    /* distância e ambiente: o ar come os agudos; paredes/ruínas abafam mais */
+    const cs=cx.createBiquadFilter();cs.type='highpass';cs.frequency.value=wh?500:150+dist*160;
+    const env=o.env;let fc=5600*Math.exp(-dist*VOX.mufla)*env.air*(o.occl?.5:1);fc=Math.max(380,fc);
+    const lp1=cx.createBiquadFilter(),lp2=cx.createBiquadFilter();lp1.type=lp2.type='lowpass';lp1.frequency.value=fc;lp2.frequency.value=fc*1.15;lp1.Q.value=lp2.Q.value=.6;
+    mix.connect(ws);ws.connect(cs);cs.connect(lp1);lp1.connect(lp2);
+    const dry=cx.createGain();dry.gain.value=(o.occl?.75:1);lp2.connect(dry);dry.connect(master);
+    /* eco do cenário: reverb curto + rebote distante */
+    const wetAmt=Math.min(.9,env.wet*VOX.eco*(.35+dist*1.1)),dl=cx.createDelay(1),fb=cx.createGain(),dlp=cx.createBiquadFilter(),wg=cx.createGain();
+    dl.delayTime.value=env.dt;fb.gain.value=env.fb;dlp.type='lowpass';dlp.frequency.value=1500;wg.gain.value=wetAmt;
+    lp2.connect(dl);dl.connect(dlp);dlp.connect(fb);fb.connect(dl);dlp.connect(wg);wg.connect(master);
+    if(env.slap&&dist>.35){const d2=cx.createDelay(1),g2=cx.createGain(),l3=cx.createBiquadFilter();d2.delayTime.value=.22+dist*.25;g2.gain.value=.3*dist*VOX.eco;l3.type='lowpass';l3.frequency.value=1100;lp2.connect(d2);d2.connect(l3);l3.connect(g2);g2.connect(master)}
+    /* ---- automação por letra ---- */
+    const setF=(F,t,tc)=>{for(let q=0;q<3;q++)fm[q].frequency.setTargetAtTime(F[q]*fs*(sh&&q===0?1.14:1),t,tc||.022)};
+    const voc=(t,l)=>{if(wh){gV.gain.setTargetAtTime(0,t,.01);gA.gain.setTargetAtTime(l*2.4,t,.012)}else{gV.gain.setTargetAtTime(l,t,.012);gA.gain.setTargetAtTime(l*(sh?.015:.035),t,.012)}};
+    const fr=(fq,q,l,t)=>{frBP.frequency.setTargetAtTime(fq,t,.008);frBP.Q.setTargetAtTime(q,t,.008);gFr.gain.setTargetAtTime(l*(wh?.7:1),t,.007)};
+    const frOff=t=>gFr.gain.setTargetAtTime(0,t,.012);
+    const seq=ptSeq(txt),nW=seq.length,ex=/!/.test(txt),qs=/\?/.test(txt);
+    let t=t0+.05,f0=o.base;
+    seq.forEach((wd,wi)=>{
+     const prog=nW>1?wi/(nW-1):1,decl=1-.13*prog+(sh?.08:0),ph=wd.ph;
+     for(let k=0;k<ph.length;k++){
+      const p=ph[k],nx=ph[k+1],T0=t;
+      if(p.t==='V'){
+       const st=p.st&&!wd.weak,F=VWF[p.v].slice();if(p.nas){F[0]*=.82;F[1]*=.88}
+       let d=(p.red?.055:st?(sh?.19:.13):.078)*sp*(1+Math.random()*.18),lv=(p.red?.28:st?.55:.4)*(p.nas?.82:1);
+       if(wd.weak)lv*=.8;
+       let pf=o.base*decl*(st?1.1:1)*(1+(Math.random()-.5)*(sh?.07:.035));if(qs&&wi===nW-1)pf*=1+.22*(k/Math.max(1,ph.length-1));if(wi===nW-1&&!qs&&k===ph.length-1)pf*=.86;
+       osc.frequency.setTargetAtTime(pf,t,.03);setF(F,t);voc(t,lv);t+=d;
+       if(p.nas&&!p.red){setF([260,1000,2500],t,.015);voc(t,lv*.55);t+=.04*sp}
+      }else if(p.t in VPL){
+       const [bf,bl,vd]=VPL[p.t];
+       if(nx&&nx.t==='V')setF(VWF[nx.v],t,.01);
+       voc(t,vd&&!wh?.1:0);frOff(t);t+=.04*sp;
+       fr(bf,1.4,bl*(vd?.55:1)*(sh?1.3:1),t);frOff(t+.012);
+       if(!vd){gA.gain.setTargetAtTime(wh?.9:.2,t+.01,.006)}else voc(t+.01,.25);
+       t+=.026*sp;
+      }else if(p.t in VFR){
+       const [ff,q,l,vd,du]=VFR[p.t];
+       setF([300,1500,2500],t,.012);voc(t,vd&&!wh?.18:0);fr(ff,q,l*(sh?1.1:1),t);t+=du*sp;frOff(t);
+      }else if(p.t==='m'||p.t==='n'||p.t==='N'){
+       setF([260,p.t==='m'?1000:p.t==='n'?1650:2000,2500],t,.014);voc(t,.3);t+=.068*sp;
+      }else if(p.t==='l'||p.t==='L'){
+       setF(p.t==='l'?[350,1200,2600]:[300,2000,2700],t,.014);voc(t,.4);t+=(p.t==='l'?.06:.08)*sp;
+      }else if(p.t==='r'){
+       voc(t,.4);setF([450,1500,2500],t,.01);voc(t+.012,.08);voc(t+.03,.4);t+=.04*sp;
+      }else if(p.t==='R'){
+       setF([600,1400,2400],t,.015);voc(t,.16);fr(1700,.8,.45,t);t+=.095*sp;frOff(t);
+      }
+     }
+     voc(t,0);frOff(t);t+=(/[,;]/.test(wd.tail)?.17:/[.!?…]/.test(wd.tail)?.24:.065)*sp});
+    const tEnd=t+.05;
+    osc.start(t0);lfo.start(t0);ns.start(t0);osc.stop(tEnd+.1);lfo.stop(tEnd+.1);ns.stop(tEnd+.1);
+    return tEnd-t0}
+   function voiceDecide(txt){
+    const Lc=(typeof L!=='undefined'&&L)||{},ex=/!/.test(txt),r=Math.random();
+    let mode=ex&&r<.6&&!/sil[eê]ncio|baixo|abaixad|quieto|escuta/i.test(txt)?'shout':'say';
+    const dist=mode==='shout'?rnd(.35,1.3):rnd(.12,1.05);
+    /* acústica do cenário: cidade reverbera e abafa atrás de paredes; floresta e neve absorvem; campo aberto tem eco distante */
+    const env=Lc.c?{wet:.5,dt:.1,fb:.42,air:.95,slap:1}:Lc.f?{wet:.14,dt:.07,fb:.25,air:.85,slap:0}:Lc.sn?{wet:.1,dt:.14,fb:.3,air:.72,slap:1}:Lc.pk?{wet:.3,dt:.12,fb:.34,air:1,slap:1}:{wet:.22,dt:.15,fb:.32,air:1,slap:1};
+    const occl=(Lc.c||Lc.pk)&&Math.random()<.28;
+    const base=mode==='shout'?rnd(95,125)*1.55:rnd(88,132),fs=rnd(.93,1.07);
+    return{mode,dist,env,occl,base,fs,sp:rnd(.92,1.1),pan:rnd(-.85,.85)}}
+  function babble(txt){if(!ac||!on||ac.state!=='running'||!nbuf)return 0;try{return voiceSay(ac,vbus,nbuf,txt,ac.currentTime+.04,voiceDecide(txt))}catch(e){console.error(e);return 0}}
+  let vAct=0,vNext=0,vLast=-1,lastVoice=null,vStart=0,vFailAt=0,vBusy=0,vId=0,vList=[];
   const synthOK=()=>'speechSynthesis'in window&&typeof SpeechSynthesisUtterance!=='undefined';
   function loadVoices(){try{vList=speechSynthesis.getVoices()||[]}catch(e){}}
   if(synthOK()){loadVoices();try{speechSynthesis.addEventListener('voiceschanged',loadVoices)}catch(e){try{speechSynthesis.onvoiceschanged=loadVoices}catch(e2){}}}
   function voiceFail(txt){if(nowT<vFailAt)return;vFailAt=nowT+4000;msg('📻 '+txt);if(!ac)return;const n=3+(Math.random()*4|0);for(let j=0;j<n;j++)setTimeout(()=>{if(on&&ac)burst({f0:rnd(220,420),f1:rnd(160,300),type:'bandpass',q:3,dur:.09,vol:.12,p:0})},j*110)}
   function ambientVoices(t,force=false){
-   if(!synthOK())return;
-   const synth=window.speechSynthesis;
-   if(!on||st!=='play'){if(vBusy||synth.speaking||synth.pending){try{synth.cancel()}catch(e){}}vBusy=0;return}
-   try{if(synth.paused)synth.resume()}catch(e){}
-   if(vBusy&&t-vStart>9000){try{synth.cancel()}catch(e){}vBusy=0;vNext=t+800}
-   if(!force&&(vBusy||t<vNext))return;
-   if(!vList.length)loadVoices();
-   let i=Math.random()*voiceCalls.length|0;if(voiceCalls.length>1&&i===vLast)i=(i+1+Math.random()*(voiceCalls.length-1)|0)%voiceCalls.length;vLast=i;
-   const txt=voiceCalls[i],u=new SpeechSynthesisUtterance(txt),
-    ptbr=vList.filter(v=>/^pt([-_]br)/i.test(v.lang)),pt=ptbr.length?ptbr:vList.filter(v=>/^pt([-_]|$)/i.test(v.lang)),
-    male=pt.filter(v=>/(male|mascul|daniel|ricardo|lucas|felipe|antonio|joao|gustavo|rafael|bruno|paulo|carlos|pedro|alex|jorge|david|thomas|oliver)/i.test(v.name+' '+(v.gender||''))),
-    pool=male.length?male:pt,choices=pool.filter(v=>v!==lastVoice),pick=choices.length?choices:pool,voice=pick.length?pick[Math.random()*pick.length|0]:null;
-   if(voice){u.voice=voice;lastVoice=voice;u.lang=voice.lang||'pt-BR'}else u.lang='pt-BR';
-   u.pitch=rnd(.75,.95);u.rate=rnd(.9,1.02);u.volume=rnd(.85,1);
-   const id=++vId;let ok1=0,done=0;
-   if(ttsDead){const d=babble(txt);if(!d){vNext=t+1500;return}vBusy=1;vStart=t;vNext=t+d*1000+rnd(3200,5800);msg('📻 '+txt);setTimeout(()=>{if(id===vId)vBusy=0},d*1000+150);return}
-   const fin=()=>{if(done||id!==vId)return;done=1;vBusy=0;vNext=nowT+rnd(3800,6700)};
-   const bad=()=>{ttsFails++;if(ttsFails>=2)ttsDead=true;const d=babble(txt);msg('📻 '+txt);if(!d)voiceFail(txt)};
-   u.onstart=()=>{ok1=1;ttsFails=0};u.onend=fin;
-   u.onerror=ev=>{const er=ev&&ev.error;fin();if(er!=='canceled'&&er!=='interrupted')bad()};
-   vBusy=1;vStart=t;vNext=t+rnd(3800,6700);
-   const go=()=>{if(id!==vId)return;if(!on||st!=='play'){vBusy=0;return}try{synth.speak(u)}catch(e){fin();voiceFail(txt)}};
-   if(force){try{synth.cancel()}catch(e){}setTimeout(go,120)}else go();
-   setTimeout(()=>{if(id===vId&&!ok1&&!done&&on&&st==='play'){try{synth.cancel()}catch(e){}fin();bad()}},2500);
-  }
-  function ambientStart(){if(!on||st!=='play')return;if(!('speechSynthesis'in window)||typeof SpeechSynthesisUtterance==='undefined'){msg('Este navegador não oferece vozes do sistema');return}ambientVoices(nowT,true)}
+    if(!on||st!=='play'){vAct=0;return}
+    if(!force&&t<vNext)return;
+    if(vAct>=3){vNext=t+700;return}
+    let i=Math.random()*voiceCalls.length|0;if(voiceCalls.length>1&&i===vLast)i=(i+1+Math.random()*(voiceCalls.length-1)|0)%voiceCalls.length;vLast=i;
+    const d=babble(voiceCalls[i]);if(!d){vNext=t+1500;return}
+    vAct++;setTimeout(()=>{vAct=Math.max(0,vAct-1)},d*1000+150);
+    vNext=t+(Math.random()<.4?rnd(250,1000):rnd(1700,4200))}
+  function ambientStart(){if(!on||st!=='play')return;ambientVoices(nowT,true)}
   function tick(dt){
     const t=nowT;ambientVoices(t);if(UG){if(!ac||!fireG)return;const play=st==='play'||st==='dead'||st==='clear';if(!ok()||!play){fireG.gain.setTargetAtTime(0,ac.currentTime,.2);return}if(st==='play'&&!jmp&&P.mv>.3)stepsOf(P,crouch?.3:.75,0,'dirt');else P._si=Math.floor((P.ph||0)/Math.PI);fireG.gain.setTargetAtTime(0,ac.currentTime,.2);return}
    if(!ac||!fireG)return;const play=st==='play'||st==='dead'||st==='clear';
@@ -2673,8 +2798,8 @@ const SFX=(()=>{
   const fv=Math.pow(Math.max(0,1-fireD/(T*9)),1.5);fireG.gain.setTargetAtTime(.16*fv,ac.currentTime,.25);
   if(fv>.05&&Math.random()<dt*14*fv)burst({f0:900,f1:400,type:'bandpass',q:1,dur:.05,vol:.25*fv,p:rnd(-.5,.5)});
    if(t>wNext){wNext=t+rnd(1800,4200);farGuns()}}
-  function toggle(){init();on=!on;if(!on&&'speechSynthesis'in window)speechSynthesis.cancel();if(ac&&mst)mst.gain.setTargetAtTime(on?.85:0,ac.currentTime,.05);if(on)ambientStart();return on}
-  return{resume,tick,shot,boom,thud,rung,reload,mag,whiz,far,whistle,engine,toggle,ambientStart,get on(){return on}}})();
+  function toggle(){init();on=!on;if(!on&&'speechSynthesis'in window)speechSynthesis.cancel();if(ac&&mst)mst.gain.setTargetAtTime(on?.85:0,ac.currentTime,.05);if(ac&&vbus)vbus.gain.setTargetAtTime(on?.85:0,ac.currentTime,.05);if(on)ambientStart();return on}
+  return{resume,tick,shot,boom,thud,rung,reload,mag,whiz,gunFar,pass,far,whistle,engine,toggle,ambientStart,get on(){return on}}})();
 ['pointerdown','keydown','touchstart'].forEach(ev=>addEventListener(ev,()=>SFX.resume(),{capture:true,passive:true}));
 document.addEventListener('visibilitychange',()=>{});
 $('snd').onclick=()=>{$('snd').textContent=SFX.toggle()?'🔊':'🔇'};
